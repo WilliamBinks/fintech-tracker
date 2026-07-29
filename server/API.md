@@ -1,11 +1,16 @@
 # Fintech Tracker API
 
-In-memory REST API for tracking expenses and loan instalments.
-Data is held in memory and resets when the server restarts (Postgres swap planned).
+REST API for tracking expenses and loan instalments.
+**Backed by PostgreSQL** — data persists across server restarts.
 
 **Base URL:** `http://localhost:3000`
 
 All request/response bodies are JSON. Send `Content-Type: application/json` on requests with a body.
+
+> **Note on numbers:** money columns are stored as SQL `NUMERIC`, which the
+> `pg` driver returns as **strings** (e.g. `"9.99"`) to preserve precision.
+> Parse them client-side if you need to do maths. `date` columns are returned
+> as ISO datetime strings.
 
 ---
 
@@ -28,20 +33,20 @@ Liveness check.
 An expense has the shape:
 
 ```json
-{ "id": "b0cfae7e-203f-44b8-9082-e02a6176dc91", "amount": 9.99, "category": "coffee", "date": "2026-07-28" }
+{ "id": "6dcdf6e1-d1d4-42ee-8237-c47bc30c7190", "amount": "9.99", "category": "coffee", "date": "2026-07-29T00:00:00.000Z" }
 ```
 
-`id` is a server-generated UUID. `amount` is a number, `category` and `date` are strings.
+`id` is a database-generated UUID (`gen_random_uuid()`).
 
 ### `GET /api/expenses`
 
-List all expenses.
+List all expenses, most recent first.
 
 **Response** `200 OK`
 
 ```json
 [
-  { "id": "b0cfae7e-203f-44b8-9082-e02a6176dc91", "amount": 9.99, "category": "coffee", "date": "2026-07-28" }
+  { "id": "6dcdf6e1-d1d4-42ee-8237-c47bc30c7190", "amount": "9.99", "category": "coffee", "date": "2026-07-29T00:00:00.000Z" }
 ]
 ```
 
@@ -49,18 +54,18 @@ Returns `[]` when there are no expenses.
 
 ### `POST /api/expenses`
 
-Create an expense. The server assigns the `id`.
+Create an expense. The database assigns the `id`.
 
 **Request**
 
 ```json
-{ "amount": 9.99, "category": "coffee", "date": "2026-07-28" }
+{ "amount": 9.99, "category": "coffee", "date": "2026-07-29" }
 ```
 
 **Response** `201 Created`
 
 ```json
-{ "id": "b0cfae7e-203f-44b8-9082-e02a6176dc91", "amount": 9.99, "category": "coffee", "date": "2026-07-28" }
+{ "id": "6dcdf6e1-d1d4-42ee-8237-c47bc30c7190", "amount": "9.99", "category": "coffee", "date": "2026-07-29T00:00:00.000Z" }
 ```
 
 ### `DELETE /api/expenses/:id`
@@ -79,12 +84,14 @@ Delete an expense by its `id`.
 
 ## Loan
 
-A single loan record holding the instalment schedule. Setting it again replaces the
-previous record (it does not append).
+A single loan record: a `balance` plus an instalment schedule. Posting again
+replaces the existing record (it does not append).
 
 ```json
-{ "installments": [ { "date": "2026-09-01", "amount": 3000 } ] }
+{ "id": "46b09add-f818-4b5b-aea3-529c3139e4e3", "balance": "6000.00", "installments": [ { "date": "2026-09-01", "amount": 3000 } ] }
 ```
+
+`installments` is stored as a `JSONB` column.
 
 ### `GET /api/loan`
 
@@ -93,34 +100,79 @@ Read the current loan record.
 **Response** `200 OK`
 
 ```json
-{ "installments": [ { "date": "2026-09-01", "amount": 3000 }, { "date": "2026-01-10", "amount": 3000 } ] }
+{ "id": "46b09add-f818-4b5b-aea3-529c3139e4e3", "balance": "6000.00", "installments": [ { "date": "2026-09-01", "amount": 3000 } ] }
 ```
+
+Returns `null` when no loan has been set.
 
 ### `POST /api/loan`
 
-Set or update the loan's instalment schedule. Replaces any existing record.
+Set or replace the loan record.
 
 **Request**
 
 ```json
-{ "installments": [ { "date": "2026-09-01", "amount": 3000 }, { "date": "2026-01-10", "amount": 3000 } ] }
+{ "balance": 6000, "installments": [ { "date": "2026-09-01", "amount": 3000 }, { "date": "2026-01-10", "amount": 3000 } ] }
 ```
 
 **Response** `201 Created`
 
 ```json
-{ "installments": [ { "date": "2026-09-01", "amount": 3000 }, { "date": "2026-01-10", "amount": 3000 } ] }
+{ "id": "46b09add-f818-4b5b-aea3-529c3139e4e3", "balance": "6000.00", "installments": [ { "date": "2026-09-01", "amount": 3000 }, { "date": "2026-01-10", "amount": 3000 } ] }
 ```
 
 ---
 
 ## Running locally
 
+### 1. Prerequisites — PostgreSQL
+
+Install and start Postgres (macOS / Homebrew):
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+```
+
+### 2. Create the database + tables
+
+```bash
+createdb tracker
+psql tracker
+```
+
+```sql
+CREATE TABLE expenses (
+  id       UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  amount   NUMERIC(10,2) NOT NULL,
+  category TEXT NOT NULL,
+  date     DATE NOT NULL
+);
+
+CREATE TABLE loan (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  balance      NUMERIC(10,2) NOT NULL,
+  installments JSONB NOT NULL DEFAULT '[]'
+);
+```
+
+### 3. Configure the connection
+
+Create `server/.env` (this file is gitignored — never commit credentials):
+
+```
+DATABASE_URL=postgres://<user>@localhost:5432/tracker
+```
+
+### 4. Run
+
 ```bash
 cd server
 npm install
-npm run dev    # nodemon, auto-restarts on change
+npm run dev     # nodemon + --env-file=.env, auto-restarts on change
 # or: npm start
 ```
 
-Server listens on port `3000`.
+Server listens on port `3000`. The `--env-file=.env` flag is required — running
+`node server.js` directly will fail to find `DATABASE_URL`.
+```
