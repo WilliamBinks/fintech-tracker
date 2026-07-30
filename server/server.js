@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { SafeToSpend } = require('./safetospend.js');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const express = require('express');
 const app = express();
@@ -48,6 +49,12 @@ app.post('/api/loan', async (req,res) => {
     const deletion = await pool.query("DELETE FROM loan");
     const result = await pool.query("INSERT INTO loan (balance, installments) VALUES ($1, $2) RETURNING *",[balance, JSON.stringify(installments)]);
     res.status(201).json(result.rows[0]);
+})
+
+app.get('/api/safeToSpend', async (req,res) => {
+  const loan = await pool.query("SELECT * FROM loan");
+  const expenses = await pool.query("SELECT * FROM expenses");
+  res.json(SafeToSpend(loan.rows[0], expenses.rows, new Date().toISOString().split('T')[0]))
 })
 
 app.listen(port, () => {
