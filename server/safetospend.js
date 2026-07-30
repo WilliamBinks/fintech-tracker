@@ -12,9 +12,7 @@ function SafeToSpend(loan, expenses, today) {
     let totalExpense = 0;
     let available = 0; 
     let weeksDifference = null;
-    const arrayOfExpenses = expenses
-    console.log(today);
-    console.log(installments)
+    const arrayOfExpenses = expenses;
     
     for (let i=0; i < numOfInstallments; i++){
         if (moment(installments[i].date).isSameOrBefore(todayM, 'day')){

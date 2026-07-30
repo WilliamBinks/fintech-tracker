@@ -123,6 +123,44 @@ Set or replace the loan record.
 
 ---
 
+## Safe to spend
+
+Computes how much is safe to spend, derived from the loan record and all
+expenses. There is no stored state — the figure is calculated on each request
+from the current loan and expenses.
+
+### `GET /api/safeToSpend`
+
+Read the current safe-to-spend calculation.
+
+**Response** `200 OK`
+
+```json
+{
+  "dropped": 13500,
+  "available": 12325.53,
+  "nextDrop": "2026-08-01",
+  "weeksDifference": 0,
+  "weeklySafeToSpend": 12325.53
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `dropped` | Loan `balance` plus every instalment whose `date` is on or before today. |
+| `available` | `dropped` minus the sum of all expense `amount`s. |
+| `nextDrop` | Date (`YYYY-MM-DD`) of the next instalment still in the future, or `null` if none remain. |
+| `weeksDifference` | Whole weeks from the current week to the week `nextDrop` lands, or `null` when `nextDrop` is `null`. |
+| `weeklySafeToSpend` | `available` spread across the weeks of runway until the next drop (the current week counts, so a drop this week divides by 1). |
+
+When no loan has been set, the endpoint returns:
+
+```json
+{ "message": "No Loan Set" }
+```
+
+---
+
 ## Running locally
 
 ### 1. Prerequisites — PostgreSQL
