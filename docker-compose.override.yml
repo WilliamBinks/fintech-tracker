@@ -1,27 +1,19 @@
-# Dev-only config. Docker Compose auto-merges this on top of docker-compose.yml
-# whenever you run `docker compose up` (no flags needed). It layers hot-reload
-# behavior over the prod-shaped base file.
-#
-# Run DEV  (this override active):  docker compose up
-# Run PROD (ignore this override):  docker compose -f docker-compose.yml up --build
 services:
   server:
-    # Swap the image's CMD (node server.js) for nodemon so the server
-    # restarts automatically whenever a file changes.
     command: npx nodemon server.js
     volumes:
-      - ./server:/app          # live-link your source into the container (no rebuild on edit)
-      - /app/node_modules      # keep the container's Linux-built node_modules (e.g. pg); don't let host shadow them
+      - ./server:/app         
+      - /app/node_modules      
 
   client:
     build:
       context: ./client
-      target: build            # stop at the Node "build" stage; skip the nginx prod stage
-    command: npm run dev -- --host 0.0.0.0   # run Vite's dev server (HMR), reachable from the host
+      target: build           
+    command: npm run dev -- --host 0.0.0.0   
     environment:
-      VITE_API_PROXY: http://server:3000     # inside the container, reach the API by service name, not localhost
+      VITE_API_PROXY: http://server:3000     
     volumes:
       - ./client:/app
       - /app/node_modules
     ports:
-      - "5173:5173"            # Vite dev-server port -> open http://localhost:5173
+      - "5173:5173"            
