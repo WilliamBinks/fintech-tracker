@@ -57,6 +57,12 @@ app.get('/api/safeToSpend', async (req,res) => {
   res.json(SafeToSpend(loan.rows[0], expenses.rows, new Date().toISOString().split('T')[0]))
 })
 
+app.get('/api/expenses/totals', async (req,res) => {
+  const result = await pool.query("SELECT sum(amount), category FROM expenses GROUP BY category");
+  console.log(result.rows);
+  res.json(result.rows);
+});
+
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
