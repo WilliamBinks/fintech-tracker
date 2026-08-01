@@ -8,7 +8,9 @@ A personal finance tracker - log expenses, track a loan's installments, and see 
 - Orchestrated with Docker Compose.
 
 ## Architecture
-(ADD HERE - short explanation of the request flow)
+The React client only ever calls relative `/api/...` paths, so the same frontend code works in dev and prod. A proxy forwards those calls to the express server, which talks to Postgres via the `pg` connection pool:
+
+React (fetch `/api/...`) -> proxy -> Express (`:3000`) -> PostgreSQL
 
 ## Dev vs Prod
 - Dev: `docker compose up` -> localhost:5173
