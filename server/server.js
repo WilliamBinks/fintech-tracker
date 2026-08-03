@@ -3,10 +3,29 @@ const { SafeToSpend } = require('./safetospend.js');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const express = require('express');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3000; 
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 app.use(express.json());
 
+
+function auth(req,res,next) {
+  const header = req.headers.authorization;
+  if (!header){
+    return res.status(401).json("Unauthorised");
+  }
+  const token = header.split(' ')[1];
+  try{
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userID = decoded.userID;
+    next();
+  } catch {
+    return res.status(401).json("Unauthorised");
+  }
+  
+  
+}
 
 app.get('/', (req, res) => {
   res.send("hello world");
@@ -18,18 +37,18 @@ app.get('/api/health', (req, res) => {
 
 
 
-app.get('/api/expenses', async (req, res) => {
+app.get('/api/expenses', auth, async (req, res) => {
   const result = await pool.query("SELECT * FROM expenses ORDER BY date DESC");
   res.json(result.rows);
 });
 
-app.post('/api/expenses', async (req, res) => {
+app.post('/api/expenses', auth, async (req, res) => {
   const {amount, category, date} = req.body;
   const result = await pool.query("INSERT INTO expenses (amount, category, date) VALUES ($1, $2, $3) RETURNING *",[amount, category, date]);
   res.status(201).json(result.rows[0])
 });
 
-app.delete('/api/expenses/:id', async (req, res) => {
+app.delete('/api/expenses/:id', auth, async (req, res) => {
   const id= req.params.id;
   const result = await pool.query("DELETE FROM expenses where id = $1 RETURNING *",[id]);
   if (result.rowCount === 0){
@@ -39,28 +58,53 @@ app.delete('/api/expenses/:id', async (req, res) => {
     
 });
 
-app.get('/api/loan', async (req, res) => {
+app.get('/api/loan', auth, async (req, res) => {
     const result = await pool.query("SELECT * FROM loan");
     res.json(result.rows[0] ?? null);
 })
 
-app.post('/api/loan', async (req,res) => {
+app.post('/api/loan', auth, async (req,res) => {
     const { balance,installments }= req.body;
     const deletion = await pool.query("DELETE FROM loan");
     const result = await pool.query("INSERT INTO loan (balance, installments) VALUES ($1, $2) RETURNING *",[balance, JSON.stringify(installments)]);
     res.status(201).json(result.rows[0]);
 })
 
-app.get('/api/safeToSpend', async (req,res) => {
+app.get('/api/safeToSpend', auth, async (req,res) => {
   const loan = await pool.query("SELECT * FROM loan");
   const expenses = await pool.query("SELECT * FROM expenses");
   res.json(SafeToSpend(loan.rows[0], expenses.rows, new Date().toISOString().split('T')[0]))
 })
 
-app.get('/api/expenses/totals', async (req,res) => {
+app.get('/api/expenses/totals', auth, async (req,res) => {
   const result = await pool.query("SELECT sum(amount), category FROM expenses GROUP BY category");
   console.log(result.rows);
   res.json(result.rows);
+});
+
+app.post('/api/signup', async (req,res) => {
+  const {email, password} = req.body;
+  const password_hash = await bcrypt.hash(password, 10);
+  const result = await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,$2) RETURNING id",[email, password_hash])
+  const token = jwt.sign({userID: result.rows[0].id}, process.env.JWT_SECRET);
+  res.status(201).json({ token });
+});
+
+app.post('/api/login', async (req,res) => {
+  const {email, password} = req.body;
+  const result = await pool.query("SELECT * FROM users WHERE email=$1",[email]);
+  const user = result.rows[0];
+  if(!user){
+    return res.status(401).json("Enter Valid Credentials");
+  }
+
+  const passwordCompare = await bcrypt.compare(password, result.rows[0].password_hash);
+  if (!passwordCompare){
+    return res.status(401).json("Enter Valid Credentials!");
+  } else {
+    const token = jwt.sign({userID: user.id}, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ token });
+  }
 });
 
 app.listen(port, () => {
