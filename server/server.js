@@ -38,19 +38,19 @@ app.get('/api/health', (req, res) => {
 
 
 app.get('/api/expenses', auth, async (req, res) => {
-  const result = await pool.query("SELECT * FROM expenses ORDER BY date DESC");
+  const result = await pool.query("SELECT * FROM expenses WHERE user_id = $1 ORDER BY date DESC", [req.userID]);
   res.json(result.rows);
 });
 
 app.post('/api/expenses', auth, async (req, res) => {
   const {amount, category, date} = req.body;
-  const result = await pool.query("INSERT INTO expenses (amount, category, date) VALUES ($1, $2, $3) RETURNING *",[amount, category, date]);
+  const result = await pool.query("INSERT INTO expenses (amount, category, date, user_id) VALUES ($1, $2, $3, $4) RETURNING *",[amount, category, date, req.userID]);
   res.status(201).json(result.rows[0])
 });
 
 app.delete('/api/expenses/:id', auth, async (req, res) => {
   const id= req.params.id;
-  const result = await pool.query("DELETE FROM expenses where id = $1 RETURNING *",[id]);
+  const result = await pool.query("DELETE FROM expenses where id = $1 AND user_id = $2 RETURNING *",[id, req.userID]);
   if (result.rowCount === 0){
     return res.status(404).json({error: 'not found'});
   } 
@@ -59,25 +59,25 @@ app.delete('/api/expenses/:id', auth, async (req, res) => {
 });
 
 app.get('/api/loan', auth, async (req, res) => {
-    const result = await pool.query("SELECT * FROM loan");
+    const result = await pool.query("SELECT * FROM loan WHERE user_id = $1", [req.userID]);
     res.json(result.rows[0] ?? null);
 })
 
 app.post('/api/loan', auth, async (req,res) => {
     const { balance,installments }= req.body;
-    const deletion = await pool.query("DELETE FROM loan");
-    const result = await pool.query("INSERT INTO loan (balance, installments) VALUES ($1, $2) RETURNING *",[balance, JSON.stringify(installments)]);
+    const deletion = await pool.query("DELETE FROM loan where user_id = $1", [req.userID]);
+    const result = await pool.query("INSERT INTO loan (balance, installments, user_id) VALUES ($1, $2, $3) RETURNING *",[balance, JSON.stringify(installments), req.userID]);
     res.status(201).json(result.rows[0]);
 })
 
 app.get('/api/safeToSpend', auth, async (req,res) => {
-  const loan = await pool.query("SELECT * FROM loan");
-  const expenses = await pool.query("SELECT * FROM expenses");
+  const loan = await pool.query("SELECT * FROM loan WHERE user_id = $1",[req.userID]);
+  const expenses = await pool.query("SELECT * FROM expenses WHERE user_id = $1",[req.userID]);
   res.json(SafeToSpend(loan.rows[0], expenses.rows, new Date().toISOString().split('T')[0]))
 })
 
 app.get('/api/expenses/totals', auth, async (req,res) => {
-  const result = await pool.query("SELECT sum(amount), category FROM expenses GROUP BY category");
+  const result = await pool.query("SELECT sum(amount), category FROM expenses WHERE user_id = $1 GROUP BY category",[req.userID]);
   console.log(result.rows);
   res.json(result.rows);
 });
@@ -86,7 +86,7 @@ app.post('/api/signup', async (req,res) => {
   const {email, password} = req.body;
   const password_hash = await bcrypt.hash(password, 10);
   const result = await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,$2) RETURNING id",[email, password_hash])
-  const token = jwt.sign({userID: result.rows[0].id}, process.env.JWT_SECRET);
+  const token = jwt.sign({userID: result.rows[0].id}, process.env.JWT_SECRET, { expiresIn: '1h' });
   res.status(201).json({ token });
 });
 

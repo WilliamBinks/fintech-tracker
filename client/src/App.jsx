@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import { apiFetch } from './api'
+import Auth from './Auth'
 
 function App() {
   const [available, setAvailable] = useState("")
@@ -10,14 +12,22 @@ function App() {
   const [category, setCategory] = useState("")
   const [date, setDate] = useState("")
   const [amountByCategory, setAmountByCategory] = useState([])
+  const [token, setToken] = useState(localStorage.getItem('token'))
+
+  
   
   useEffect(() => {
-    fetch('/api/expenses')
+    if (!token) return 
+    
+    apiFetch('/api/expenses')
       .then((res) => res.json())
       .then((data) => setExpenses(data))
      safeToSpend()
      expenseByCategory()
-  }, [])
+  }, [token])
+  if (!token) {
+    return <Auth onLogin = {setToken} />
+  } 
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -27,7 +37,7 @@ function App() {
     setDate("")
   }
   async function addExpense(amount, category, date) {
-    const res = await fetch('/api/expenses', {
+    const res = await apiFetch('/api/expenses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount, category, date }),
@@ -39,7 +49,7 @@ function App() {
   }
 
   async function deleteExpense(id) {
-    const res = await fetch(`/api/expenses/${id}`,{
+    const res = await apiFetch(`/api/expenses/${id}`,{
       method: 'DELETE' })
       setExpenses((prev) => prev.filter((e) => e.id !== id))
       expenseByCategory()
@@ -47,7 +57,7 @@ function App() {
   }
 
   async function safeToSpend(){
-    const res = await fetch('/api/safeToSpend', {
+    const res = await apiFetch('/api/safeToSpend', {
       method: 'GET'
     })
     const data = await res.json();
@@ -57,11 +67,16 @@ function App() {
   }
 
   async function expenseByCategory(){
-    const res = await fetch('/api/expenses/totals', {
+    const res = await apiFetch('/api/expenses/totals', {
       method: 'GET'
     })
     const data = await res.json();
     setAmountByCategory(data);
+  }
+
+  function logout(){
+    localStorage.removeItem('token');
+    setToken(null)
   }
 
   return (
@@ -88,7 +103,7 @@ function App() {
 
         ))}
       </ul>
-      
+      <button type="button" onClick={ logout }>Log out</button>
       
     </>
   )
