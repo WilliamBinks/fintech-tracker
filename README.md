@@ -1,6 +1,8 @@
 # Fintech Tracker
 A personal finance tracker - log expenses, track a loan's installments, and see a weekly 'safe to spend' figure.
 
+![Fintech Tracker Demo](client/src/assets/screenshot.png)
+
 **DEMO -->** https://fintech-tracker-y79g.onrender.com
 
 ## Tech Stack
