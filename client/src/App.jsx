@@ -37,13 +37,16 @@ function App() {
     setDate("")
   }
   async function addExpense(amount, category, date) {
-    const res = await apiFetch('/api/expenses', {
+    await apiFetch('/api/expenses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount, category, date }),
     })
-    const created = await res.json()
-    setExpenses((prev) => [created, ...prev])
+    const getRes = await apiFetch('/api/expenses', {
+      method: 'GET'
+    })
+    const data = await getRes.json()
+    setExpenses(data)
     expenseByCategory()
     safeToSpend()
   }
