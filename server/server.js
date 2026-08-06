@@ -6,6 +6,13 @@ const app = express();
 const port = process.env.PORT || 3000; 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const Stripe = require('stripe');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const PLANS = {
+    onetime: {price: process.env.STRIPE_PRICE_ONETIME, mode: 'payment' },
+    term: {price: process.env.STRIPE_PRICE_TERM, mode: 'subscription' },
+};
 
 app.use(express.json());
 
@@ -105,6 +112,27 @@ app.post('/api/login', async (req,res) => {
     const token = jwt.sign({userID: user.id}, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.status(200).json({ token });
   }
+});
+
+app.post('/api/create-checkout-session', async (req, res) => {
+  const { plan } = req.body
+  const selected = PLANS[plan];
+  if(!selected){
+    return res.status(400).json({ error: 'invalid plan' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: selected.mode,
+      line_items: [{price: selected.price, quantity: 1 }],
+      success_url: 'http://localhost:5173/success',
+      cancel_url: 'http://localhost:5173/cancel',
+    });
+    res.json({ url: session.url });
+    } catch(err){
+      console.error('stripe error:', err.message);
+      res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = { app, pool };
