@@ -14,6 +14,23 @@ const PLANS = {
     term: {price: process.env.STRIPE_PRICE_TERM, mode: 'subscription' },
 };
 
+app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req,res) => {
+  let event;
+  try{
+    const sig = req.headers['stripe-signature'];
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch(err){
+    return res.status(400).send(`Webhook Error: ${err.message}`)
+  }
+  if (event.type === 'checkout.session.completed'){
+    const client_reference_id = event.data.object.client_reference_id;
+    const result = await pool.query('UPDATE users SET paid = true WHERE id = $1',[client_reference_id]);
+    
+  }
+  res.json({ received: true});
+})
+
+
 app.use(express.json());
 
 
@@ -85,7 +102,6 @@ app.get('/api/safeToSpend', auth, async (req,res) => {
 
 app.get('/api/expenses/totals', auth, async (req,res) => {
   const result = await pool.query("SELECT sum(amount), category FROM expenses WHERE user_id = $1 GROUP BY category",[req.userID]);
-  console.log(result.rows);
   res.json(result.rows);
 });
 
@@ -114,9 +130,10 @@ app.post('/api/login', async (req,res) => {
   }
 });
 
-app.post('/api/create-checkout-session', async (req, res) => {
+app.post('/api/create-checkout-session', auth, async (req, res) => {
   const { plan } = req.body
   const selected = PLANS[plan];
+
   if(!selected){
     return res.status(400).json({ error: 'invalid plan' });
   }
@@ -127,10 +144,10 @@ app.post('/api/create-checkout-session', async (req, res) => {
       line_items: [{price: selected.price, quantity: 1 }],
       success_url: 'http://localhost:5173/success',
       cancel_url: 'http://localhost:5173/cancel',
+      client_reference_id: req.userID,
     });
     res.json({ url: session.url });
     } catch(err){
-      console.error('stripe error:', err.message);
       res.status(500).json({ error: err.message });
     }
 });
