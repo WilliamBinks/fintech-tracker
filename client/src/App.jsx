@@ -51,6 +51,16 @@ function App() {
     safeToSpend()
   }
 
+  async function handleUpgrade(){
+    const res = await apiFetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: 'term' })
+    })
+    const { url } = await res.json();
+    window.location = url
+  }
+
   async function deleteExpense(id) {
     const res = await apiFetch(`/api/expenses/${id}`,{
       method: 'DELETE' })
@@ -86,7 +96,10 @@ function App() {
     <>
     <header className="app-header">
       <span className="brand">Fintech Tracker</span>
-      <button type="button" className='logout' onClick={ logout }>Log out</button>
+      <div className='nav-buttons'>
+        <button type="button" onClick={handleUpgrade}>Upgrade</button>
+        <button type="button" className='logout' onClick={ logout }>Log out</button>
+      </div>
     </header>
     <main className="container">
       <section className="card balance">
