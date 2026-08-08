@@ -152,6 +152,11 @@ app.post('/api/create-checkout-session', auth, async (req, res) => {
     }
 });
 
+app.get('/api/paid', auth , async (req,res) => {
+    const result = await pool.query("SELECT paid FROM users WHERE id = $1",[req.userID]);
+    res.json(result.rows[0]);
+});
+
 module.exports = { app, pool };
 
 if (require.main === module) {
