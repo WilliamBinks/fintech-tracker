@@ -13,8 +13,9 @@ function App() {
   const [date, setDate] = useState("")
   const [amountByCategory, setAmountByCategory] = useState([])
   const [token, setToken] = useState(localStorage.getItem('token'))
-
-  
+  const [paid, setPaid] = useState(false)
+  const [installments, setInstallments] = useState([{date:"", amount:""}, {date:"", amount:""}, {date:"", amount:""}])
+  const[bufferPercentage, setBufferPercentage] = useState(10)
   
   useEffect(() => {
     if (!token) return 
@@ -24,6 +25,7 @@ function App() {
       .then((data) => setExpenses(data))
      safeToSpend()
      expenseByCategory()
+     hasUserPaid()
   }, [token])
   if (!token) {
     return <Auth onLogin = {setToken} />
@@ -51,6 +53,15 @@ function App() {
     safeToSpend()
   }
 
+  async function hasUserPaid() {
+    const res = await apiFetch('/api/paid', {
+      method:'GET'
+    })
+    const data = await res.json()
+    console.log(data.paid);
+    setPaid(data.paid);
+    
+  }
   async function handleUpgrade(){
     const res = await apiFetch('/api/create-checkout-session', {
       method: 'POST',
@@ -87,6 +98,20 @@ function App() {
     setAmountByCategory(data);
   }
 
+  async function updateInstallment(index,field,value){
+    setInstallments(prev => prev.map((row,i) => i === index ? {...row, [field]: value} : row))
+  }
+
+  async function handleInstallments(e){
+    e.preventDefault();
+    const res = await apiFetch('/api/loan',{
+      method: 'POST',
+      headers:{'Content-Type': 'application/json'},
+      body: JSON.stringify({ balance: 0, installments: installments})
+    })
+    safeToSpend();
+  }
+
   function logout(){
     localStorage.removeItem('token');
     setToken(null)
@@ -94,10 +119,11 @@ function App() {
 
   return (
     <>
+    
     <header className="app-header">
       <span className="brand">Fintech Tracker</span>
       <div className='nav-buttons'>
-        <button type="button" onClick={handleUpgrade}>Upgrade</button>
+        {!paid && <button type="button" onClick={handleUpgrade}>Upgrade</button>}
         <button type="button" className='logout' onClick={ logout }>Log out</button>
       </div>
     </header>
@@ -106,7 +132,7 @@ function App() {
         <span className='label'>Available to spend</span>
         <span className='amount'>£{available}</span>
         <div className='balance-meta'>
-          <span>Weekly Spend: £{weeklySafeToSpend}</span>
+          <span>Weekly Spend: £{(weeklySafeToSpend * (1 - bufferPercentage/100)).toFixed(2)}</span>
           <span>Next Drop: {nextDrop}</span>
         </div>
         
@@ -137,6 +163,23 @@ function App() {
           </div>
           <button type="submit">Add</button>
         </form>
+      </section>
+
+      <section className='card'>
+        <span className='label'>Add Loan Installments</span>
+        <form onSubmit={handleInstallments}>
+          <div>
+            <input type="date" value={installments[0].date} onChange={(e) => updateInstallment(0, 'date', e.target.value)}></input><input type="number" value={installments[0].amount} onChange={(e) => updateInstallment(0, 'amount', e.target.value)}></input>
+            <input type="date" value={installments[1].date} onChange={(e) => updateInstallment(1, 'date', e.target.value)}></input><input type="number" value={installments[1].amount} onChange={(e) => updateInstallment(1, 'amount', e.target.value)}></input>
+            <input type="date" value={installments[2].date} onChange={(e) => updateInstallment(2, 'date', e.target.value)}></input><input type="number" value={installments[2].amount} onChange={(e) => updateInstallment(2, 'amount', e.target.value)}></input>
+          </div>
+          <button type="submit">Add</button>
+        </form>
+      </section>
+
+      <section className='card'>
+        <span className='label'>Safe to Spend Buffer</span>
+          <input type="number" min="0" max="100" value={bufferPercentage} onChange={(e) => setBufferPercentage(e.target.value)}></input>
       </section>
     </main>
       
