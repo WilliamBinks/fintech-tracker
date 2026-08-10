@@ -115,6 +115,7 @@ function App() {
   function logout(){
     localStorage.removeItem('token');
     setToken(null)
+    window.location.reload()
   }
 
   return (
